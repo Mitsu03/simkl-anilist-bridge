@@ -3,14 +3,18 @@
  * One-time Simkl authorisation via the device PIN flow — no redirect URI or
  * local web server needed. The resulting access token does not expire.
  *
+ * Usage: npm run auth:simkl -- --client-id <id>   (or answer the prompt)
+ *
  * Register an app first at https://simkl.com/settings/developer
  * (redirect URI can be anything, e.g. urn:ietf:wg:oauth:2.0:oob).
  */
 
-import { loadEnv, saveEnv, ask } from './_env.mjs';
+import { loadEnv, saveEnv, ask, argValue } from './_env.mjs';
 
 const env = loadEnv();
-const clientId = await ask('Simkl client id: ', { existing: env.SIMKL_CLIENT_ID });
+const clientId = await ask('Simkl client id: ', {
+  existing: argValue('client-id') ?? env.SIMKL_CLIENT_ID,
+});
 if (!clientId) throw new Error('a client id is required');
 
 const pinRes = await fetch(`https://api.simkl.com/oauth/pin?client_id=${encodeURIComponent(clientId)}`, {

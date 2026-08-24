@@ -81,7 +81,20 @@ export function diffEntry(desired, current, { allowLowering = false } = {}) {
   }
 
   if (desired.status !== current.status) {
-    changes.push(`status ${current.status}→${desired.status}`);
+    // Simkl lets an entry sit in plan-to-watch while still holding a full watch
+    // history (re-adding something you have already finished does this). Pushing
+    // that across would write PLANNING alongside a non-zero progress, which is
+    // incoherent on AniList too, and would quietly un-complete a finished show.
+    // Progress is the more trustworthy signal, so the status change is dropped.
+    if (desired.status === 'PLANNING' && desired.progress > 0) {
+      write.status = current.status;
+      warnings.push(
+        `Simkl says plan-to-watch but reports ${desired.progress} episode(s) watched; ` +
+          `keeping AniList status ${current.status}`,
+      );
+    } else {
+      changes.push(`status ${current.status}→${desired.status}`);
+    }
   }
 
   // Only push a score when Simkl has one; a missing rating is not a zero.

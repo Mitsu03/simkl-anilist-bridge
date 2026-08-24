@@ -32,8 +32,20 @@ export function saveEnv(key, value) {
   writeFileSync(FILE, lines.filter((l, i) => l !== '' || i < lines.length - 1).join('\n').replace(/\n*$/, '\n'));
 }
 
+/**
+ * Read `--flag value` from argv, so every prompt can also be supplied
+ * non-interactively (needed when the script is driven by an agent or CI).
+ */
+export function argValue(flag) {
+  const i = process.argv.indexOf(`--${flag}`);
+  return i === -1 ? undefined : process.argv[i + 1];
+}
+
 export async function ask(question, { existing } = {}) {
   if (existing) return existing;
+  if (!stdin.isTTY) {
+    throw new Error(`no TTY to ask "${question.trim()}" — pass it as a flag instead`);
+  }
   const rl = createInterface({ input: stdin, output: stdout });
   try {
     return (await rl.question(question)).trim();
