@@ -1,7 +1,7 @@
 # simkl-anilist-bridge
 
-Mirrors your Simkl anime progress onto AniList. Runs on Cloudflare Workers on a
-cron trigger, so it keeps working whether you tick an episode off in Nuvio, on
+Mirrors your Simkl anime progress onto AniList. Runs on a GitHub Actions
+schedule, so it keeps working whether you tick an episode off in Nuvio, on
 simkl.com, on your phone, or on the TV — nothing depends on a particular machine
 being switched on.
 
@@ -87,33 +87,43 @@ node scripts/inspect-snapshot.mjs ~/path/to/nuvio_simkl_sync.properties
 
 ### 3. Deploy
 
+Push the repository to GitHub, then add three secrets:
+
 ```bash
-npx wrangler login
-npx wrangler kv namespace create BRIDGE_STATE   # paste the id into wrangler.toml
-npx wrangler secret put SIMKL_CLIENT_ID
-npx wrangler secret put SIMKL_ACCESS_TOKEN
-npx wrangler secret put ANILIST_ACCESS_TOKEN
-npx wrangler secret put BRIDGE_TOKEN            # any long random string
-npm run deploy
+gh secret set SIMKL_CLIENT_ID       # values from .dev.vars
+gh secret set SIMKL_ACCESS_TOKEN
+gh secret set ANILIST_ACCESS_TOKEN
 ```
 
-The cron runs every 10 minutes by default; edit `crons` in `wrangler.toml` to
-change that. This sits far inside the Workers free tier.
+`.github/workflows/sync.yml` then runs every 30 minutes. Trigger one by hand
+with `gh workflow run sync.yml`, or add `-f force=true` to ignore the watermark
+and re-compare the whole library.
 
-## Operating it
+State — the Simkl watermark and any undrained write queue — is a single JSON
+file kept on an orphan `state` branch, so scheduled runs stay stateful without
+adding commit noise to the default branch.
 
-All HTTP routes require the `BRIDGE_TOKEN`, as either `?key=…` or an
-`Authorization: Bearer …` header — the workers.dev URL is public.
+### Cost
 
-| Route | Does |
-|---|---|
-| `GET /?key=…` | current watermark and queue depth |
-| `GET /run?key=…` | run now |
-| `GET /run?key=…&dry=1` | plan without writing |
-| `GET /run?key=…&force=1` | ignore the watermark, re-compare everything |
-| `POST /reset?key=…` | clear state; the next run does a full comparison |
+On a **private** repo this uses roughly half of a free account's 2 000
+Actions-minutes per month (about 1 440 runs at ~40 s each). Making the repo
+public gives unlimited minutes; the code holds no secrets, which stay in GitHub
+Secrets either way. Lengthen the cron if you would rather keep it private and
+cheap.
 
-`npm run tail` streams live logs.
+## Why not Cloudflare Workers
+
+The first version of this ran on a Worker, which is a better fit on paper: cron
+triggers, KV for state, generous free tier. **AniList blocks the Cloudflare
+Workers egress IPs.** The same token and query answer `200` from a laptop and
+are refused from a Worker with *"You have been manually blocked"* — the block is
+on the shared origin, not on any credential, and no amount of retrying or
+throttling gets around it. Simkl works fine from a Worker; only the AniList side
+is affected, which is unfortunately the half that matters.
+
+GitHub's runners are not blocked, which is why the bridge lives here. Any host
+you move it to needs checking the same way — one `{ Viewer { id name } }` query
+from that host answers it.
 
 ## Deliberate limits
 

@@ -8,12 +8,7 @@
     "auth:simkl": "node scripts/auth-simkl.mjs",
     "auth:anilist": "node scripts/auth-anilist.mjs",
     "dryrun": "node scripts/dryrun.mjs",
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "tail": "wrangler tail",
-    "push:secrets": "node scripts/push-secrets.mjs"
-  },
-  "devDependencies": {
-    "wrangler": "^4.125.0"
+    "push:secrets": "node scripts/push-secrets.mjs",
+    "sync": "node scripts/run-sync.mjs"
   }
 }

@@ -1,0 +1,62 @@
+# Mirrors Simkl anime progress onto AniList on a schedule.
+#
+# State (the Simkl watermark and any undrained write queue) lives as a single
+# JSON file on a dedicated `state` branch, so scheduled runs stay stateful
+# without adding commit noise to the default branch.
+name: sync
+
+on:
+  schedule:
+    # Every 30 minutes. GitHub delays scheduled runs under load, so treat this
+    # as a floor rather than a guarantee.
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Ignore the watermark and re-compare the whole library'
+        type: boolean
+        default: false
+
+concurrency:
+  # Two runs sharing one state branch would race on the watermark.
+  group: sync
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Restore state
+        run: |
+          git fetch origin state:state 2>/dev/null && git show state:state.json > state.json \
+            || echo '{}' > state.json
+          echo "state on entry: $(cat state.json)"
+
+      - name: Sync
+        env:
+          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+          SIMKL_ACCESS_TOKEN: ${{ secrets.SIMKL_ACCESS_TOKEN }}
+          ANILIST_ACCESS_TOKEN: ${{ secrets.ANILIST_ACCESS_TOKEN }}
+        run: node scripts/run-sync.mjs --state state.json ${{ inputs.force && '--force' || '' }}
+
+      - name: Persist state
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          # An orphan branch holding only the state file: no shared history with
+          # the default branch, so it can never interfere with the code.
+          git checkout --orphan state-update
+          git rm -rq --cached . || true
+          git add -f state.json
+          git commit -qm "state: $(date -u +%FT%TZ)" || exit 0
+          git push -qf origin state-update:state
+          echo "state persisted: $(cat state.json)"
