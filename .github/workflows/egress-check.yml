@@ -34,3 +34,5 @@ jobs:
             }
             console.log("OK — AniList answered from a GitHub runner as", body.data.Viewer.name);
           ' --input-type=module
+
+# touch: force a push event so Actions indexes this workflow
