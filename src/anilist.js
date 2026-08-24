@@ -46,7 +46,9 @@ export class AniListClient {
   constructor({ accessToken, fetchImpl = fetch, minIntervalMs = 2400, log = () => {} }) {
     if (!accessToken) throw new Error('ANILIST_ACCESS_TOKEN is required');
     this.accessToken = accessToken;
-    this.fetch = fetchImpl;
+    // See the note in simkl.js: the Workers runtime rejects a global fetch
+    // called with anything but globalThis as its `this`.
+    this.fetch = (...args) => fetchImpl(...args);
     this.minIntervalMs = minIntervalMs;
     this.log = log;
     this.nextAllowedAt = 0;

@@ -2,6 +2,10 @@ name = "simkl-anilist-bridge"
 main = "src/worker.js"
 compatibility_date = "2026-01-01"
 
+# Every route is gated on BRIDGE_TOKEN, but per-version preview URLs would add
+# more public entry points than this needs. The one stable URL is enough.
+preview_urls = false
+
 # Poll Simkl every 10 minutes. The poll itself is a single cheap request, so
 # this stays far inside the Workers free tier; drop it to "*/5 * * * *" if you
 # want tighter latency between marking an episode and it landing on AniList.
@@ -17,11 +21,9 @@ ANILIST_MIN_INTERVAL_MS = "2400"
 # Whether Simkl showing FEWER watched episodes should pull AniList back down.
 ALLOW_LOWERING = "false"
 
-# Created with: wrangler kv namespace create BRIDGE_STATE
-# Paste the returned id below.
 [[kv_namespaces]]
 binding = "BRIDGE_STATE"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "54c71e5e07a444d4ac87953c24914c96"
 
 # Secrets are NOT set here. Set them with:
 #   wrangler secret put SIMKL_CLIENT_ID

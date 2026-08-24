@@ -10,9 +10,10 @@
     "dryrun": "node scripts/dryrun.mjs",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "tail": "wrangler tail"
+    "tail": "wrangler tail",
+    "push:secrets": "node scripts/push-secrets.mjs"
   },
   "devDependencies": {
-    "wrangler": "^3.90.0"
+    "wrangler": "^4.125.0"
   }
 }

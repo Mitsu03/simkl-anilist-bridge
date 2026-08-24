@@ -4,3 +4,4 @@ node_modules/
 *.local.json
 .state.local.json
 auth.log
+wrangler-login.log

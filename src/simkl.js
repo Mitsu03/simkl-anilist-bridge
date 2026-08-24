@@ -13,7 +13,10 @@ export class SimklClient {
     if (!accessToken) throw new Error('SIMKL_ACCESS_TOKEN is required');
     this.clientId = clientId;
     this.accessToken = accessToken;
-    this.fetch = fetchImpl;
+    // Bound rather than stored bare: calling `this.fetch(...)` would otherwise
+    // invoke the global fetch with the client as `this`, which the Workers
+    // runtime rejects as an illegal invocation.
+    this.fetch = (...args) => fetchImpl(...args);
   }
 
   async #get(path, params = {}) {
