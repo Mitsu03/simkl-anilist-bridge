@@ -1,15 +1,13 @@
 # Filled in by `npm run auth:simkl` and `npm run auth:anilist`.
 # Never commit the real .dev.vars — it holds live tokens.
+# In CI these are GitHub Actions secrets, not this file.
 SIMKL_CLIENT_ID=
 SIMKL_ACCESS_TOKEN=
 ANILIST_CLIENT_ID=
 ANILIST_CLIENT_SECRET=
 ANILIST_ACCESS_TOKEN=
 
-# Shared secret guarding the Worker's HTTP routes. Any long random string.
-BRIDGE_TOKEN=
-
-# Optional tuning, mirrored from wrangler.toml [vars].
+# Optional tuning.
 WRITE_BUDGET=40
 ANILIST_MIN_INTERVAL_MS=2400
 ALLOW_LOWERING=false

@@ -95,7 +95,7 @@ gh secret set SIMKL_ACCESS_TOKEN
 gh secret set ANILIST_ACCESS_TOKEN
 ```
 
-`.github/workflows/sync.yml` then runs every 30 minutes. Trigger one by hand
+`.github/workflows/sync.yml` then runs every 5 minutes. Trigger one by hand
 with `gh workflow run sync.yml`, or add `-f force=true` to ignore the watermark
 and re-compare the whole library.
 
@@ -105,11 +105,14 @@ adding commit noise to the default branch.
 
 ### Cost
 
-On a **private** repo this uses roughly half of a free account's 2 000
-Actions-minutes per month (about 1 440 runs at ~40 s each). Making the repo
-public gives unlimited minutes; the code holds no secrets, which stay in GitHub
-Secrets either way. Lengthen the cron if you would rather keep it private and
-cheap.
+The repository is public, so Actions minutes are unlimited. On a **private**
+repo a 5-minute cron would blow straight through a free account's 2 000
+minutes/month — lengthen the cron a long way before making it private.
+
+Two GitHub behaviours worth knowing: scheduled runs are queued at low priority
+and get dropped under load, so a 5-minute cron in practice fires every 5-15
+minutes; and GitHub disables scheduled workflows on a public repository after
+60 days with no commits, which needs a manual re-enable.
 
 ## Why not Cloudflare Workers
 

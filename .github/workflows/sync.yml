@@ -7,9 +7,9 @@ name: sync
 
 on:
   schedule:
-    # Every 30 minutes. GitHub delays scheduled runs under load, so treat this
-    # as a floor rather than a guarantee.
-    - cron: '*/30 * * * *'
+    # Every 5 minutes. GitHub queues scheduled runs and drops them under load,
+    # so the real cadence is looser than this asks for -- treat it as a floor.
+    - cron: '*/5 * * * *'
   workflow_dispatch:
     inputs:
       force:
