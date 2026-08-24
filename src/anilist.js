@@ -27,7 +27,7 @@ query ($userId: Int) {
 }`;
 
 const SAVE_MUTATION = `
-mutation ($mediaId: Int, $progress: Int, $status: MediaListStatus, $score: Float) {
+mutation ($mediaId: Int, $progress: Int, $status: MediaListStatus, $score: Int) {
   SaveMediaListEntry(mediaId: $mediaId, progress: $progress, status: $status, scoreRaw: $score) {
     id
     mediaId
@@ -136,7 +136,7 @@ export class AniListClient {
   }
 }
 
-/** Simkl ratings are 1-10; AniList's raw score scale is 0-100. */
+/** Simkl ratings are 1-10; AniList's scoreRaw is an integer 0-100. */
 export function toScoreRaw(simklRating) {
   if (simklRating == null) return null;
   const n = Number(simklRating);
