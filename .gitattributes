@@ -1,0 +1,3 @@
+# GitHub parses workflow files from the committed blob; keep them LF so a
+# Windows checkout can't commit CRLF into YAML.
+* text=auto eol=lf
