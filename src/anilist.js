@@ -21,7 +21,13 @@ const LIST_QUERY = `
 query ($userId: Int) {
   MediaListCollection(userId: $userId, type: ANIME) {
     lists {
-      entries { mediaId progress status score(format: POINT_100) }
+      entries {
+        mediaId
+        progress
+        status
+        score(format: POINT_100)
+        media { episodes }
+      }
     }
   }
 }`;
@@ -104,13 +110,24 @@ export class AniListClient {
     const data = await this.#request(LIST_QUERY, { userId });
     const byMediaId = new Map();
     for (const list of data.MediaListCollection?.lists ?? []) {
-      for (const e of list.entries ?? []) byMediaId.set(e.mediaId, e);
+      for (const e of list.entries ?? []) {
+        // `episodes` is null while a series is still airing, in which case
+        // there is no ceiling to respect.
+        byMediaId.set(e.mediaId, { ...e, episodes: e.media?.episodes ?? null });
+      }
     }
     return byMediaId;
   }
 
-  saveEntry({ mediaId, progress, status, score }) {
-    return this.#request(SAVE_MUTATION, { mediaId, progress, status, score });
+  async saveEntry({ mediaId, progress, status, score }) {
+    const data = await this.#request(SAVE_MUTATION, { mediaId, progress, status, score });
+    const saved = data?.SaveMediaListEntry;
+    // AniList caps progress at the media's own episode count and reports
+    // success anyway, so a write can "succeed" without taking effect.
+    if (saved && progress != null && saved.progress < progress) {
+      return { ...saved, clamped: true, requestedProgress: progress };
+    }
+    return saved;
   }
 
   /**

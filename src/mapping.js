@@ -68,6 +68,20 @@ export function diffEntry(desired, current, { allowLowering = false } = {}) {
   const warnings = [];
   const write = { ...desired };
 
+  // AniList silently caps progress at its own episode count for the entry, and
+  // Simkl sometimes counts more episodes for the same season. Respect the
+  // ceiling during planning, otherwise every run re-plans a write that the
+  // server will truncate again.
+  if (current.episodes && desired.progress > current.episodes) {
+    if (current.progress < current.episodes) {
+      warnings.push(
+        `Simkl counts ${desired.progress} episode(s), AniList only has ${current.episodes}; capping`,
+      );
+    }
+    write.progress = current.episodes;
+    desired = { ...desired, progress: current.episodes };
+  }
+
   if (desired.progress > current.progress) {
     changes.push(`progress ${current.progress}→${desired.progress}`);
   } else if (desired.progress < current.progress) {
