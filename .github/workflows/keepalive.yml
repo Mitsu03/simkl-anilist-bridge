@@ -1,0 +1,34 @@
+# Keeps the scheduled sync alive.
+#
+# GitHub disables scheduled workflows on a public repository after 60 days with
+# no repository activity, and only commits count as activity — not tags, issues
+# or stars. The sync's own state commits land on the `state` branch, which may
+# not count, so this puts a real commit on the default branch once a month.
+#
+# Monthly rather than every-59-days on purpose: it leaves a full spare cycle, so
+# one missed or dropped run cannot let the window lapse.
+name: keepalive
+
+on:
+  schedule:
+    - cron: '0 6 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Record a heartbeat on the default branch
+        run: |
+          date -u +%FT%TZ > .github/keepalive
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add .github/keepalive
+          git commit -qm "keepalive: $(cat .github/keepalive)"
+          git push -q origin HEAD:${{ github.ref_name }}
+          echo "heartbeat: $(cat .github/keepalive)"

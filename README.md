@@ -112,7 +112,8 @@ minutes/month — lengthen the cron a long way before making it private.
 Two GitHub behaviours worth knowing: scheduled runs are queued at low priority
 and get dropped under load, so a 5-minute cron in practice fires every 5-15
 minutes; and GitHub disables scheduled workflows on a public repository after
-60 days with no commits, which needs a manual re-enable.
+60 days with no commits, which `.github/workflows/keepalive.yml` prevents by
+committing a heartbeat to the default branch once a month.
 
 ## Why not Cloudflare Workers
 
