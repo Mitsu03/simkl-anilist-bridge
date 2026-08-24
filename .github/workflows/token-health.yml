@@ -1,0 +1,65 @@
+# Warns before a credential lapses, and says so where it will be noticed.
+#
+# The AniList token expires about a year after issue; either token can also be
+# revoked early, which no date predicts. This checks both and keeps exactly one
+# issue open — reopening and editing it rather than filing a new one each week —
+# then closes it once the credentials are healthy again.
+name: token health
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+    inputs:
+      warn_days:
+        description: 'Days of remaining validity that count as a warning'
+        type: string
+        default: '30'
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check credentials
+        id: check
+        env:
+          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+          SIMKL_ACCESS_TOKEN: ${{ secrets.SIMKL_ACCESS_TOKEN }}
+          ANILIST_ACCESS_TOKEN: ${{ secrets.ANILIST_ACCESS_TOKEN }}
+        run: node scripts/check-tokens.mjs --warn-days ${{ inputs.warn_days || '30' }}
+
+      - name: Open or update the issue
+        if: steps.check.outputs.status != 'ok'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          existing=$(gh issue list --label credentials --state open \
+            --json number -q '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --body-file token-health.md
+            echo "updated issue #$existing"
+          else
+            gh issue create \
+              --title "Credential refresh needed (${{ steps.check.outputs.status }})" \
+              --label credentials \
+              --body-file token-health.md
+          fi
+
+      - name: Close the issue once healthy
+        if: steps.check.outputs.status == 'ok'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for n in $(gh issue list --label credentials --state open --json number -q '.[].number'); do
+            gh issue close "$n" --comment "Credentials healthy again — closing automatically."
+            echo "closed issue #$n"
+          done
