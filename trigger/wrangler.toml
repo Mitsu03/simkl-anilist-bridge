@@ -1,0 +1,21 @@
+name = "simkl-anilist-trigger"
+main = "src/worker.js"
+compatibility_date = "2026-01-01"
+preview_urls = false
+
+# Cloudflare honours this schedule properly, which is the entire point of the
+# Worker existing: GitHub's own scheduler drops most ticks.
+[triggers]
+crons = ["*/2 * * * *"]
+
+[vars]
+GITHUB_REPO = "Mitsu03/simkl-anilist-bridge"
+GITHUB_WORKFLOW = "sync.yml"
+GITHUB_REF = "master"
+
+[[kv_namespaces]]
+binding = "BRIDGE_STATE"
+id = "54c71e5e07a444d4ac87953c24914c96"
+
+# Secrets are set with `wrangler secret put`, never here:
+#   SIMKL_CLIENT_ID  SIMKL_ACCESS_TOKEN  GITHUB_TOKEN  BRIDGE_TOKEN

@@ -115,6 +115,33 @@ minutes; and GitHub disables scheduled workflows on a public repository after
 60 days with no commits, which `.github/workflows/keepalive.yml` prevents by
 committing a heartbeat to the default branch once a month.
 
+## Latency, and the trigger Worker
+
+GitHub throttles `schedule` runs hard. A `*/5` cron was measured firing at 19,
+35 and 22 minute intervals — scheduled runs are queued at low priority and
+dropped under load. Runs started by `workflow_dispatch`, by contrast, begin
+within seconds.
+
+So `trigger/` holds a small Cloudflare Worker that polls Simkl's activities
+endpoint every 2 minutes — one cheap request — and dispatches this repository's
+`sync` workflow when the anime timestamp moves. It never touches AniList, so
+the IP block below does not apply to it. End-to-end latency goes from 20-35
+minutes to 2-3.
+
+The GitHub side keeps the authoritative watermark; the Worker stores only a
+dispatch de-duplication marker, so if the two diverge the worst case is one
+redundant run reporting "unchanged". The `*/5` schedule stays enabled as a
+fallback for if the Worker ever stops.
+
+```bash
+cd trigger
+npx wrangler secret put SIMKL_CLIENT_ID
+npx wrangler secret put SIMKL_ACCESS_TOKEN
+npx wrangler secret put GITHUB_TOKEN     # fine-grained PAT, this repo, Actions: read and write
+npx wrangler secret put BRIDGE_TOKEN     # guards the Worker's own HTTP routes
+npx wrangler deploy
+```
+
 ## Why not Cloudflare Workers
 
 The first version of this ran on a Worker, which is a better fit on paper: cron
