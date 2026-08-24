@@ -1,0 +1,18 @@
+{
+  "name": "simkl-anilist-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "One-way mirror of Simkl anime progress onto AniList.",
+  "scripts": {
+    "auth:simkl": "node scripts/auth-simkl.mjs",
+    "auth:anilist": "node scripts/auth-anilist.mjs",
+    "dryrun": "node scripts/dryrun.mjs",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^3.90.0"
+  }
+}
