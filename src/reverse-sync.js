@@ -4,9 +4,28 @@
  */
 
 import {
-  snapshotOf, readBaseline, writeBaseline, readIdMap,
+  snapshotOf, readBaseline, writeBaseline, readIdMap, writeIdMap, idMapFrom,
   detectAdvances, historyPayload, listPayload,
 } from './reverse.js';
+import { toDesiredState } from './mapping.js';
+
+/**
+ * The forward pass builds the AniList -> Simkl id map, but only on runs where
+ * the Simkl watermark moved. A user marking an episode on AniList alone changes
+ * nothing on Simkl, so on exactly the runs this half exists to serve, the map
+ * may never have been written. Fetch the full Simkl list once to bootstrap it.
+ */
+async function ensureIdMap(store, simkl, log) {
+  const existing = await readIdMap(store);
+  if (Object.keys(existing).length) return existing;
+
+  log('reverse: no id map yet, fetching the full Simkl list to build one');
+  const desired = (await simkl.animeItems()).map(toDesiredState).filter(Boolean);
+  const map = idMapFrom(desired);
+  await writeIdMap(store, map);
+  log(`reverse: id map built for ${Object.keys(map).length} entries`);
+  return map;
+}
 
 export async function runReverse({ simkl, anilist, store, dryRun = false, log = console.log }) {
   const viewer = await anilist.viewer();
@@ -17,12 +36,15 @@ export async function runReverse({ simkl, anilist, store, dryRun = false, log = 
   // Without a baseline every standing disagreement between the two services
   // would read as new movement. Record and write nothing.
   if (!baseline) {
-    if (!dryRun) await writeBaseline(store, current);
+    if (!dryRun) {
+      await ensureIdMap(store, simkl, log);
+      await writeBaseline(store, current);
+    }
     log(`reverse: baseline recorded for ${Object.keys(current).length} entries, nothing pushed`);
     return { status: 'baseline', entries: Object.keys(current).length };
   }
 
-  const idMap = await readIdMap(store);
+  const idMap = await ensureIdMap(store, simkl, log);
   const { episodeAdds, statusChanges, skipped } = detectAdvances({ baseline, current, idMap });
 
   for (const s of skipped) log(`  ! ${s}`);
