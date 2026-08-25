@@ -1,5 +1,5 @@
 /**
- * Simkl API client — read side only.
+ * Simkl API client.
  *
  * Auth uses the device PIN flow (see scripts/auth-simkl.mjs); the resulting
  * access token does not expire, so there is no refresh path here.
@@ -38,6 +38,37 @@ export class SimklClient {
     if (res.status === 204) return null;
     const text = await res.text();
     return text ? JSON.parse(text) : null;
+  }
+
+  async #post(path, payload) {
+    const res = await this.fetch(new URL(BASE + path), {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.accessToken}`,
+        'simkl-api-key': this.clientId,
+        'User-Agent': 'simkl-anilist-bridge/0.1',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`Simkl ${path} failed: ${res.status} ${await res.text().catch(() => '')}`.trim());
+    const text = await res.text();
+    return text ? JSON.parse(text) : null;
+  }
+
+  /**
+   * Record watched episodes. Simkl tracks history as individual episodes
+   * rather than a progress count, and re-adding one already recorded is a
+   * no-op, so this is safe to retry.
+   */
+  addToHistory(payload) {
+    return this.#post('/sync/history', payload);
+  }
+
+  /** Move entries between lists (watching, completed, dropped, ...). */
+  addToList(payload) {
+    return this.#post('/sync/add-to-list', payload);
   }
 
   /** Cheap poll: one request returning last-modified timestamps per domain. */

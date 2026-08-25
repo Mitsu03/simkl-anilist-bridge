@@ -26,6 +26,7 @@ query ($userId: Int) {
         progress
         status
         score(format: POINT_100)
+        updatedAt
         media { episodes }
       }
     }

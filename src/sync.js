@@ -17,6 +17,7 @@
  */
 
 import { toDesiredState, diffEntry } from './mapping.js';
+import { idMapFrom, readIdMap, writeIdMap } from './reverse.js';
 
 const KEY_WATERMARK = 'watermark';
 const KEY_QUEUE = 'queue';
@@ -57,6 +58,7 @@ export async function runSync({
   const batch = queue.slice(0, budget);
   const rest = queue.slice(budget);
   const failed = [];
+  summary.writtenItems = [];
 
   for (const item of batch) {
     try {
@@ -67,6 +69,11 @@ export async function runSync({
         score: item.score ?? undefined,
       });
       summary.written++;
+      summary.writtenItems.push({
+        anilistId: item.anilistId,
+        progress: item.progress,
+        status: item.status,
+      });
       log(`✓ ${item.title} — ${item.status} ${item.progress}`);
     } catch (err) {
       summary.failed++;
@@ -124,6 +131,10 @@ async function buildPlan({ simkl, anilist, store, force, allowLowering, log }) {
   const warnings = [];
   const unmapped = desired.filter((d) => !d.anilistId);
   for (const d of unmapped) warnings.push(`no AniList match: ${d.title} (mal=${d.malId ?? '—'})`);
+
+  // The reverse direction needs this mapping for entries a delta fetch will
+  // not contain, so refresh it from whatever Simkl returned this run.
+  await writeIdMap(store, idMapFrom(desired, await readIdMap(store)));
 
   const viewer = await anilist.viewer();
   const current = await anilist.listEntries(viewer.id);
