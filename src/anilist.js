@@ -84,6 +84,20 @@ export class AniListClient {
     }
     if (res.status === 401) throw new Error('AniList rejected the token (401) — re-run `npm run auth:anilist`');
 
+    // 5xx is AniList being briefly unwell rather than a bad request, and every
+    // query the bridge sends is either a read or an absolute-value write, so
+    // replaying one is safe.
+    if (res.status >= 500) {
+      if (attempt >= 3) {
+        const detail = await res.text().catch(() => '');
+        throw new Error(`AniList request failed: ${res.status} after ${attempt} retries ${detail.slice(0, 200)}`.trim());
+      }
+      const backoffMs = 2000 * 2 ** attempt;
+      this.log(`AniList ${res.status}, retrying in ${backoffMs / 1000}s`);
+      await new Promise((r) => setTimeout(r, backoffMs));
+      return this.#request(query, variables, attempt + 1);
+    }
+
     const body = await res.json().catch(() => null);
     if (!res.ok && !body) throw new Error(`AniList request failed: ${res.status}`);
 
@@ -95,6 +109,13 @@ export class AniListClient {
     // Remaining budget is advisory but lets us slow down before hitting 429.
     const remaining = Number(res.headers.get('x-ratelimit-remaining'));
     if (Number.isFinite(remaining) && remaining < 10) this.nextAllowedAt = Date.now() + 5000;
+
+    // A degraded AniList answers with a JSON body carrying neither `data` nor a
+    // GraphQL `errors` array. That used to return undefined and crash in the
+    // caller instead of here, where the status and body are still in hand.
+    if (body?.data == null) {
+      throw new Error(`AniList returned no data (${res.status}): ${JSON.stringify(body).slice(0, 200)}`);
+    }
 
     return body.data;
   }
