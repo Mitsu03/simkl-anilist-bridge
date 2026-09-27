@@ -11,17 +11,27 @@
  * AniList progress has RISEN, or its status has CHANGED, since the previous
  * run. A standing disagreement never moves, so it never fires.
  *
- * Two consequences fall out of that rule and both matter:
+ * An entry added on AniList since the previous run is movement too, measured
+ * from nothing: its episodes are pushed, and so is its status when that
+ * cannot move Simkl backwards (see detectAdvances).
+ *
+ * Three consequences fall out of that rule and all matter:
  *
  *   - The first run must write nothing. With no baseline, every standing
  *     difference would read as new movement and be pushed at once.
  *   - After the forward sync writes to AniList, the baseline must be updated to
  *     match, or our own write looks like a user edit on the next run and is
  *     echoed straight back to Simkl.
+ *   - A burst of "new" entries is not trusted. The baseline is rewritten from
+ *     each run's list, so one short read followed by a full one would make
+ *     every missing entry reappear as new and be bulk-pushed.
  */
 
 const KEY_OBSERVED = 'anilistObserved';
 const KEY_ID_MAP = 'anilistToSimkl';
+
+/** More new entries than this in one run are adopted, not pushed. */
+export const NEW_ENTRY_LIMIT = 15;
 
 /** AniList's statuses, mapped back onto Simkl's list names. */
 export const STATUS_TO_SIMKL = {
@@ -61,15 +71,40 @@ export function idMapFrom(desiredEntries, existing = {}) {
   return map;
 }
 
-/** What moved on AniList since the baseline. */
-export function detectAdvances({ baseline, current, idMap }) {
+/** AniList ids with no baseline entry: added since the previous run. */
+export function newEntryIds(baseline, current) {
+  return Object.keys(current).filter((id) => !baseline[id]);
+}
+
+/** AniList ids detectAdvances could act on, so their Simkl ids are needed. */
+export function movedIds({ baseline, current, acceptNew }) {
+  return Object.entries(current)
+    .filter(([id, now]) => {
+      const before = baseline[id];
+      if (!before) return acceptNew;
+      return now.p > before.p || (now.s && now.s !== before.s);
+    })
+    .map(([id]) => id);
+}
+
+/**
+ * What moved on AniList since the baseline.
+ *
+ * A new entry pushes its episodes (idempotent on Simkl) but its status only
+ * when that cannot demote a title Simkl already holds: COMPLETED always, any
+ * other status only when `simklHeld` (the Simkl ids on the user's list) is
+ * known and lacks the title. Adding a rewatch as CURRENT must not pull a
+ * completed Simkl entry back to watching.
+ */
+export function detectAdvances({ baseline, current, idMap, acceptNew = true, simklHeld = null }) {
   const episodeAdds = [];
   const statusChanges = [];
   const skipped = [];
 
   for (const [idStr, now] of Object.entries(current)) {
-    const before = baseline[idStr];
-    if (!before) continue; // unseen entry: the baseline update will adopt it
+    const isNew = !baseline[idStr];
+    if (isNew && !acceptNew) continue; // adopted by the baseline update
+    const before = baseline[idStr] ?? { p: 0, s: null };
 
     const gainedEpisodes = now.p > before.p;
     const changedStatus = now.s && now.s !== before.s;
@@ -96,8 +131,11 @@ export function detectAdvances({ baseline, current, idMap }) {
 
     if (changedStatus) {
       const to = STATUS_TO_SIMKL[now.s];
+      const mayDemote = isNew && to !== 'completed' && !(simklHeld && !simklHeld.has(simkl.simklId));
       if (!to) {
         skipped.push(`${simkl.title}: AniList status ${now.s} has no Simkl equivalent`);
+      } else if (mayDemote) {
+        skipped.push(`${simkl.title}: new on AniList as ${now.s} but already on Simkl, status left alone`);
       } else {
         statusChanges.push({
           simklId: simkl.simklId,
