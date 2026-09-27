@@ -71,6 +71,17 @@ export class SimklClient {
     return this.#post('/sync/add-to-list', payload);
   }
 
+  /**
+   * Simkl's id for an AniList media id, or null when Simkl has no match. Used
+   * for titles that were never on the Simkl list, so the forward direction
+   * never saw them and the id map has no entry.
+   */
+  async lookupAnilistId(anilistId) {
+    const hits = await this.#get('/search/id', { anilist: anilistId });
+    const hit = (hits ?? []).find((h) => h.type === 'anime' && h.ids?.simkl);
+    return hit ? { simklId: hit.ids.simkl, title: hit.title } : null;
+  }
+
   /** Cheap poll: one request returning last-modified timestamps per domain. */
   activities() {
     return this.#get('/sync/activities');
