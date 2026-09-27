@@ -12,6 +12,11 @@
  * moves, dispatch the GitHub workflow that does the actual writing. It never
  * touches AniList.
  *
+ * Edits made on AniList alone never move Simkl's timestamp, and the Worker
+ * cannot see AniList, so it also dispatches on a heartbeat (HEARTBEAT_MINUTES)
+ * whenever no dispatch has happened for that long. That bounds how long an
+ * AniList-only change waits for the reverse pass.
+ *
  * The GitHub side keeps the authoritative watermark. The marker stored here is
  * only for dispatch de-duplication, so if the two ever diverge the worst case
  * is one redundant run that reports "unchanged".
@@ -20,6 +25,11 @@
 import { SimklClient } from '../../src/simkl.js';
 
 const KEY_LAST_DISPATCHED = 'lastDispatchedAnimeActivity';
+const KEY_LAST_DISPATCH_AT = 'lastDispatchAt';
+
+// Cron ticks are not millisecond-exact; without slack a 10-minute heartbeat on
+// a 2-minute cron would often wait for the 12-minute tick instead.
+const TICK_SLACK_MS = 30_000;
 
 async function poll(env, log) {
   const simkl = new SimklClient({
@@ -30,11 +40,19 @@ async function poll(env, log) {
   const activities = await simkl.activities();
   const current = activities?.anime?.all ?? null;
   const lastDispatched = await env.BRIDGE_STATE.get(KEY_LAST_DISPATCHED);
+  const lastAt = Number(await env.BRIDGE_STATE.get(KEY_LAST_DISPATCH_AT)) || 0;
 
-  if (!current) return { status: 'no-activity-timestamp' };
-  if (current === lastDispatched) return { status: 'unchanged', activity: current };
+  const heartbeatMs = Number(env.HEARTBEAT_MINUTES ?? 10) * 60_000;
+  const simklMoved = Boolean(current) && current !== lastDispatched;
+  const heartbeatDue = heartbeatMs > 0 && Date.now() - lastAt >= heartbeatMs - TICK_SLACK_MS;
 
-  log(`Simkl anime activity moved ${lastDispatched ?? '(none)'} -> ${current}`);
+  if (!simklMoved && !heartbeatDue) return { status: 'unchanged', activity: current };
+
+  log(
+    simklMoved
+      ? `Simkl anime activity moved ${lastDispatched ?? '(none)'} -> ${current}`
+      : `heartbeat: no dispatch for ${Math.round((Date.now() - lastAt) / 60_000)} min`,
+  );
 
   const res = await fetch(
     `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/${env.GITHUB_WORKFLOW}/dispatches`,
@@ -57,8 +75,9 @@ async function poll(env, log) {
     throw new Error(`GitHub dispatch failed: ${res.status} ${detail}`.trim());
   }
 
-  await env.BRIDGE_STATE.put(KEY_LAST_DISPATCHED, current);
-  return { status: 'dispatched', activity: current };
+  if (current) await env.BRIDGE_STATE.put(KEY_LAST_DISPATCHED, current);
+  await env.BRIDGE_STATE.put(KEY_LAST_DISPATCH_AT, String(Date.now()));
+  return { status: 'dispatched', reason: simklMoved ? 'simkl' : 'heartbeat', activity: current };
 }
 
 export default {
@@ -94,8 +113,11 @@ export default {
         }
         return json({ ...(await poll(env, log)), log: lines });
       }
+      const lastAt = Number(await env.BRIDGE_STATE.get(KEY_LAST_DISPATCH_AT)) || null;
       return json({
         lastDispatched: await env.BRIDGE_STATE.get(KEY_LAST_DISPATCHED),
+        lastDispatchAt: lastAt && new Date(lastAt).toISOString(),
+        heartbeatMinutes: Number(env.HEARTBEAT_MINUTES ?? 10),
         repo: env.GITHUB_REPO,
         workflow: env.GITHUB_WORKFLOW,
       });
