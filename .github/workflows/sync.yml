@@ -10,6 +10,9 @@ on:
     # Every 5 minutes. GitHub queues scheduled runs and drops them under load,
     # so the real cadence is looser than this asks for -- treat it as a floor.
     - cron: '*/5 * * * *'
+    # Every 3 hours, a full re-compare (--force). Simkl can change an entry
+    # without bumping /sync/activities, which the delta runs never see.
+    - cron: '0 */3 * * *'
   workflow_dispatch:
     inputs:
       force:
@@ -46,7 +49,7 @@ jobs:
           SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
           SIMKL_ACCESS_TOKEN: ${{ secrets.SIMKL_ACCESS_TOKEN }}
           ANILIST_ACCESS_TOKEN: ${{ secrets.ANILIST_ACCESS_TOKEN }}
-        run: node scripts/run-sync.mjs --state state.json ${{ inputs.force && '--force' || '' }}
+        run: node scripts/run-sync.mjs --state state.json ${{ (github.event.schedule == '0 */3 * * *' || inputs.force) && '--force' || '' }}
 
       - name: Persist state
         run: |

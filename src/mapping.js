@@ -25,12 +25,20 @@ export const STATUS_MAP = {
 export function toDesiredState(entry) {
   const body = simklBody(entry);
   const ids = body.ids ?? {};
-  const status = STATUS_MAP[entry.status];
+  let status = STATUS_MAP[entry.status];
   if (!status) return null;
 
   const total = Number(entry.total_episodes_count ?? 0);
   let progress = Number(entry.watched_episodes_count ?? 0);
   if (!Number.isFinite(progress) || progress < 0) progress = 0;
+
+  // Simkl can leave a fully watched, fully aired show in 'watching', or move it
+  // to 'completed' later without bumping /sync/activities. Every episode seen
+  // and none left to air is finished, whatever the status says.
+  const notAired = Number(entry.not_aired_episodes_count ?? 0);
+  if (entry.status === 'watching' && total > 0 && progress >= total && notAired === 0) {
+    status = 'COMPLETED';
+  }
 
   // A completed film reads as 0/0 episodes on Simkl but is 1 episode on AniList.
   const isFilm = (body.anime_type ?? entry.anime_type) === 'movie';
