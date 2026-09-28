@@ -12,6 +12,9 @@ crons = ["*/2 * * * *"]
 GITHUB_REPO = "Mitsu03/simkl-anilist-bridge"
 GITHUB_WORKFLOW = "sync.yml"
 GITHUB_REF = "master"
+# Dispatch anyway after this long without one, so AniList-only edits (which
+# the Worker cannot see) reach Simkl within it. 0 disables the heartbeat.
+HEARTBEAT_MINUTES = "10"
 
 [[kv_namespaces]]
 binding = "BRIDGE_STATE"
